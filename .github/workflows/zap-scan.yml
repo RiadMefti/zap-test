@@ -95,9 +95,47 @@ jobs:
           echo "### Files produced in workspace (top matches)" >> $GITHUB_STEP_SUMMARY
           find "$GITHUB_WORKSPACE" -maxdepth 3 -type f \( -iname '*report*.html' -o -iname '*report*.json' -o -iname '*report*.md' -o -iname '*zap*.yaml' \) -print | sed -n '1,50p' >> $GITHUB_STEP_SUMMARY || true
           echo "" >> $GITHUB_STEP_SUMMARY
-          # If a JSON report exists anywhere, show a quick count of alerts
-          REPJSON=$(find "$GITHUB_WORKSPACE" -type f -iname 'report*.json' -print -quit)
+          # If a JSON report exists anywhere, show a detailed markdown summary (counts + top alerts)
+          REPJSON=$(find "$GITHUB_WORKSPACE" -type f \( -iname 'report*.json' -o -iname 'report_*.json' -o -iname '*report*.json' -o -iname '*zap*.json' \) -print -quit)
           if [ -n "$REPJSON" ]; then
-            echo "### Quick findings from first JSON report: $REPJSON" >> $GITHUB_STEP_SUMMARY
-            jq '.site[]?.alerts | length as $n | {alerts_count: $n}' "$REPJSON" 2>/dev/null | sed -n '1,40p' >> $GITHUB_STEP_SUMMARY || true
+            echo "### Findings (generated from $REPJSON)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Alert counts by risk**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # Produce counts grouped by risk (High/Medium/Low/Informational)
+            jq -r '
+              [ ( ( .site // .sites // [] )
+                  | ( if type=="array" then .[] else . end )
+                  | ( .alerts? // [] )
+                  | .[]? | (.risk // "Informational") ) ]
+              | group_by(.) | map({risk: .[0], count: length}) | sort_by(-.count)[] | "- \(.risk): \(.count)"
+            ' "$REPJSON" 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Top alerts (by occurrence)**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # Table header
+            echo "| Risk | Count | Alert | Example URL |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---:|---|---|" >> $GITHUB_STEP_SUMMARY
+            # Emit up to 20 alerts, sorted by occurrences
+            jq -r '
+              [ ( ( .site // .sites // [] )
+                  | ( if type=="array" then .[] else . end )
+                  | ( .alerts? // [] )
+                  | .[]? | {name: .name, risk: (.risk // "Informational"), instances: (.instances // []) } ) ]
+              | group_by(.name)
+              | map({ name: .[0].name, risk: .[0].risk, count: (map(.instances|length) | add), url: (.[0].instances[0].uri // .[0].instances[0].url // "") })
+              | sort_by(-.count) | .[] | [ .risk, (.count|tostring), .name, .url ] | @tsv
+            ' "$REPJSON" 2>/dev/null |
+              sort -t$'\t' -k2,2nr |
+              head -n 20 |
+              while IFS=$'\t' read -r risk cnt name url; do
+                # escape pipe characters in name and url
+                safe_name=$(echo "$name" | sed 's/|/\\|/g' | sed 's/\n/ /g')
+                safe_url=$(echo "$url" | sed 's/|/\\|/g' | sed 's/\n/ /g')
+                echo "| $risk | $cnt | $safe_name | $safe_url |" >> $GITHUB_STEP_SUMMARY
+              done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full HTML/JSON/MD reports are attached as artifacts — download from the run to view the complete report." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No JSON report found in workspace; download the artifacts to view the full report." >> $GITHUB_STEP_SUMMARY
           fi
