@@ -34,23 +34,20 @@ jobs:
       - name: Create reports directory
         run: mkdir -p "$GITHUB_WORKSPACE/zap-reports"
 
-      - name: Pull ZAP Docker image
-        run: docker pull zaproxy/zap-stable:latest
+      - name: Run ZAP Baseline (official action)
+        id: run-zap-action
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ env.TARGET }}
+          # generate both HTML and JSON outputs
+          cmd_options: '-r -j'
 
-      - name: Run ZAP Baseline Scan (docker)
-        id: run-zap
+      - name: List generated reports
         run: |
-          set -e
-          echo "Scanning $TARGET ..."
-          # run container as the current runner user and set HOME to the mounted reports dir
-          # avoid world-writable chmod and unnecessary sudo for security
-          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/zap/wrk -v "$GITHUB_WORKSPACE/zap-reports":/zap/wrk:rw -t zaproxy/zap-stable \
-            zap-baseline.py -t "$TARGET" -r /zap/wrk/zap-report.html -J /zap/wrk/zap-report.json || true
-        env:
-          TARGET: ${{ env.TARGET }}
-
-      - name: List reports
-        run: ls -la "$GITHUB_WORKSPACE/zap-reports"
+          echo "Workspace files:"
+          ls -la "$GITHUB_WORKSPACE" || true
+          echo "Top-level report files:"
+          find "$GITHUB_WORKSPACE" -maxdepth 3 -type f \( -iname '*report*.html' -o -iname '*report*.json' -o -iname '*report*.md' -o -iname 'zap.yaml' \) -print || true
 
       - name: Upload HTML Report
         if: always()
