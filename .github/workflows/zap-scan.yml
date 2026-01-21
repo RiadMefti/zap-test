@@ -83,6 +83,35 @@ jobs:
           path: '**/*zap*.yaml'
           retention-days: 30
 
+      - name: Embed Markdown report to run summary (explicit)
+        if: always()
+        run: |
+          # Find top-level markdown report
+          REPMD=$(find "$GITHUB_WORKSPACE" -maxdepth 1 -type f -iname 'report*.md' -print -quit)
+          if [ -n "$REPMD" ]; then
+            echo "Embedding markdown report $REPMD into the run summary (truncated if large)"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "### Full Markdown report: $(basename "$REPMD")" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            MAX_BYTES=60000
+            FILE_BYTES=$(wc -c < "$REPMD" || echo 0)
+            if [ "$FILE_BYTES" -le "$MAX_BYTES" ]; then
+              sed -n '1,99999p' "$REPMD" >> $GITHUB_STEP_SUMMARY || true
+            else
+              head -c $MAX_BYTES "$REPMD" >> $GITHUB_STEP_SUMMARY || true
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "_Report truncated to ${MAX_BYTES} bytes — download the artifact for the full report._" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # Also print a short preview to the job log for immediate visibility
+            echo "---- BEGIN EMBEDDED REPORT PREVIEW ----"
+            sed -n '1,200p' "$REPMD" || true
+            echo "---- END EMBEDDED REPORT PREVIEW ----"
+          else
+            echo "No markdown report found to embed"
+          fi
+
       - name: Add scan summary to workflow run
         if: always()
         run: |
@@ -135,7 +164,26 @@ jobs:
                 echo "| $risk | $cnt | $safe_name | $safe_url |" >> $GITHUB_STEP_SUMMARY
               done
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Full HTML/JSON/MD reports are attached as artifacts — download from the run to view the complete report." >> $GITHUB_STEP_SUMMARY
+          echo "Full HTML/JSON/MD reports are attached as artifacts — download from the run to view the complete report." >> $GITHUB_STEP_SUMMARY
           else
             echo "No JSON report found in workspace; download the artifacts to view the full report." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # If a Markdown report exists, embed a truncated copy directly into the run summary
+          REPMD=$(find "$GITHUB_WORKSPACE" -type f \( -iname 'report*.md' -o -iname 'report_*.md' -o -iname '*report*.md' \) -print -quit)
+          if [ -n "$REPMD" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Full Markdown report (first 1000 lines): $REPMD" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # Append up to 1000 lines to avoid exceeding summary size limits
+            sed -n '1,1000p' "$REPMD" >> $GITHUB_STEP_SUMMARY || true
+            # Indicate truncation if the file is longer
+            LINES_TOTAL=$(wc -l < "$REPMD" || echo 0)
+            if [ "$LINES_TOTAL" -gt 1000 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "_Report truncated — download the full artifact to view the complete report._" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
           fi
