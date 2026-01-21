@@ -164,26 +164,7 @@ jobs:
                 echo "| $risk | $cnt | $safe_name | $safe_url |" >> $GITHUB_STEP_SUMMARY
               done
             echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Full HTML/JSON/MD reports are attached as artifacts — download from the run to view the complete report." >> $GITHUB_STEP_SUMMARY
+            echo "Full HTML/JSON/MD reports are attached as artifacts — download from the run to view the complete report." >> $GITHUB_STEP_SUMMARY
           else
             echo "No JSON report found in workspace; download the artifacts to view the full report." >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # If a Markdown report exists, embed a truncated copy directly into the run summary
-          REPMD=$(find "$GITHUB_WORKSPACE" -type f \( -iname 'report*.md' -o -iname 'report_*.md' -o -iname '*report*.md' \) -print -quit)
-          if [ -n "$REPMD" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "---" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Full Markdown report (first 1000 lines): $REPMD" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            # Append up to 1000 lines to avoid exceeding summary size limits
-            sed -n '1,1000p' "$REPMD" >> $GITHUB_STEP_SUMMARY || true
-            # Indicate truncation if the file is longer
-            LINES_TOTAL=$(wc -l < "$REPMD" || echo 0)
-            if [ "$LINES_TOTAL" -gt 1000 ]; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "_Report truncated — download the full artifact to view the complete report._" >> $GITHUB_STEP_SUMMARY
-            fi
-          fi
           fi
