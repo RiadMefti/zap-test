@@ -39,8 +39,6 @@ jobs:
         uses: zaproxy/action-baseline@v0.14.0
         with:
           target: ${{ env.TARGET }}
-          # generate both HTML and JSON outputs
-          cmd_options: '-r -j'
           # avoid creating GitHub issues from this integration (runner token may lack permissions)
           allow_issue_writing: false
           # do not fail the job automatically; we'll surface results via artifacts
