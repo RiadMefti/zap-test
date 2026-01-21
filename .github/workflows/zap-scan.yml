@@ -41,6 +41,10 @@ jobs:
           target: ${{ env.TARGET }}
           # generate both HTML and JSON outputs
           cmd_options: '-r -j'
+          # avoid creating GitHub issues from this integration (runner token may lack permissions)
+          allow_issue_writing: false
+          # do not fail the job automatically; we'll surface results via artifacts
+          fail_action: false
 
       - name: List generated reports
         run: |
@@ -54,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-html-report
-          path: zap-reports/zap-report.html
+          path: report_html.html
           retention-days: 30
 
       - name: Upload JSON Report
@@ -62,15 +66,23 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zap-json-report
-          path: zap-reports/zap-report.json
+          path: report_json.json
           retention-days: 30
 
-      - name: Upload ZAP YAML
+      - name: Upload Markdown Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-md-report
+          path: report_md.md
+          retention-days: 30
+
+      - name: Upload ZAP YAML (if present)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zap-yaml
-          path: zap-reports/zap.yaml
+          path: zap.yaml
           retention-days: 30
 
       - name: Add scan summary to workflow run
