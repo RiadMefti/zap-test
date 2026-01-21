@@ -53,36 +53,36 @@ jobs:
           echo "Top-level report files:"
           find "$GITHUB_WORKSPACE" -maxdepth 3 -type f \( -iname '*report*.html' -o -iname '*report*.json' -o -iname '*report*.md' -o -iname 'zap.yaml' \) -print || true
 
-      - name: Upload HTML Report
+      - name: Upload HTML reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-html-report
-          path: report_html.html
+          name: zap-html-reports
+          path: '**/report*.html'
           retention-days: 30
 
-      - name: Upload JSON Report
+      - name: Upload JSON reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-json-report
-          path: report_json.json
+          name: zap-json-reports
+          path: '**/report*.json'
           retention-days: 30
 
-      - name: Upload Markdown Report
+      - name: Upload Markdown reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-md-report
-          path: report_md.md
+          name: zap-md-reports
+          path: '**/report*.md'
           retention-days: 30
 
-      - name: Upload ZAP YAML (if present)
+      - name: Upload any ZAP yaml files
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-yaml
-          path: zap.yaml
+          name: zap-yaml-files
+          path: '**/*zap*.yaml'
           retention-days: 30
 
       - name: Add scan summary to workflow run
@@ -92,11 +92,14 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Target:** $TARGET" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Artifacts:" >> $GITHUB_STEP_SUMMARY
-          echo "- zap-html-report (artifact)" >> $GITHUB_STEP_SUMMARY
-          echo "- zap-json-report (artifact)" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts (download from the run): https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "$GITHUB_WORKSPACE/zap-reports/zap-report.json" ]; then
-            echo "### Quick findings from JSON (first-level)" >> $GITHUB_STEP_SUMMARY
-            jq '.site[].alerts | length as $n | {site: .site, alerts_count: $n}' "$GITHUB_WORKSPACE/zap-reports/zap-report.json" 2>/dev/null || true
+          echo "### Files produced in workspace (top matches)" >> $GITHUB_STEP_SUMMARY
+          find "$GITHUB_WORKSPACE" -maxdepth 3 -type f \( -iname '*report*.html' -o -iname '*report*.json' -o -iname '*report*.md' -o -iname '*zap*.yaml' \) -print | sed -n '1,50p' >> $GITHUB_STEP_SUMMARY || true
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # If a JSON report exists anywhere, show a quick count of alerts
+          REPJSON=$(find "$GITHUB_WORKSPACE" -type f -iname 'report*.json' -print -quit)
+          if [ -n "$REPJSON" ]; then
+            echo "### Quick findings from first JSON report: $REPJSON" >> $GITHUB_STEP_SUMMARY
+            jq '.site[]?.alerts | length as $n | {alerts_count: $n}' "$REPJSON" 2>/dev/null | sed -n '1,40p' >> $GITHUB_STEP_SUMMARY || true
           fi
